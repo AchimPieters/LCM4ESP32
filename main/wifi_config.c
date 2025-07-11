@@ -106,7 +106,7 @@ static void wifi_scan_task(void *arg)
     INFO("Starting WiFi scanning");
     wifi_mode_t mode;
     while (true) {
-        vTaskDelay(1000 / portTICK_PERIOD_MS);
+        vTaskDelay(pdMS_TO_TICKS(1000));
         esp_wifi_get_mode(&mode);
         if (mode!=WIFI_MODE_APSTA) break;
         if (esp_wifi_scan_start(NULL, true)!=ESP_OK) continue;
@@ -198,7 +198,7 @@ static esp_err_t post_handler(httpd_req_t *req) {
     nvs_commit(lcm_handle);
     form_params_free(form);
 
-    vTaskDelay(500 / portTICK_PERIOD_MS);
+    vTaskDelay(pdMS_TO_TICKS(500));
 
     wifi_config_station_connect();
     
@@ -213,7 +213,7 @@ static esp_err_t get_handler(httpd_req_t *req) {
     httpd_resp_set_hdr(req,"Cache-Control","no-store");
     httpd_resp_set_hdr(req,"Content-Type","text/html; charset=utf-8");
     httpd_resp_send_chunk(req,     html_settings_header,        HTTPD_RESP_USE_STRLEN);
-    if (xSemaphoreTake(wifi_networks_mutex, 5000 / portTICK_PERIOD_MS)) {
+    if (xSemaphoreTake(wifi_networks_mutex, pdMS_TO_TICKS(5000))) {
         wifi_network_info_t *net = wifi_networks;
         while (net) {
             printf("ssid:%s,mode:%d\n",net->ssid,net->secure);
@@ -401,7 +401,7 @@ static void http_task(void *arg) {
 
         int fd = accept(listenfd, (struct sockaddr *)NULL, (socklen_t *)NULL);
         if (fd < 0) {
-            vTaskDelay(500 / portTICK_PERIOD_MS);
+            vTaskDelay(pdMS_TO_TICKS(500));
             continue;
         }
 
@@ -614,7 +614,7 @@ static void wifi_config_softap_stop() {
     dns_stop();
     http_stop();
     https_stop();
-    while (context->dns_task_handle || context->http_task_handle || context->https_task_handle) vTaskDelay(20/ portTICK_PERIOD_MS);
+    while (context->dns_task_handle || context->http_task_handle || context->https_task_handle) vTaskDelay(pdMS_TO_TICKS(20));
     esp_wifi_set_mode(WIFI_MODE_STA);
     // xSemaphoreTake(wifi_networks_mutex, portMAX_DELAY); //consider this
     INFO("Stopped AP mode");
@@ -670,7 +670,7 @@ size_t tty_readline(char *buffer, size_t buf_size) {
             putchar(c);
             fflush(stdout);
         }
-        vTaskDelay(1);
+        vTaskDelay(pdMS_TO_TICKS(10));
     }
     buffer[i] = 0;
     return i;
@@ -782,13 +782,13 @@ void serial_input(void *arg) {
 //             nvs_flash_init();
         }
     }
-    while (1) vTaskDelay(200); //wait for the end
-}    
+    while (1) vTaskDelay(pdMS_TO_TICKS(2000)); //wait for the end
+}
 
 
 void timeout_task(void *arg) {
     while(timeleft-->0) {
-        vTaskDelay(1000/portTICK_PERIOD_MS); //1 second
+        vTaskDelay(pdMS_TO_TICKS(1000)); //1 second
     }
     vTaskDelete(arg);
     
@@ -825,7 +825,7 @@ void wifi_config_init(const char *ssid_prefix, const char *password, void (*on_w
 
     context->on_wifi_ready = on_wifi_ready;
 
-    context->sta_connect_timeout=xTimerCreate("timer",15000/portTICK_PERIOD_MS,pdFALSE,(void*)context,wifi_config_sta_connect_timeout_callback);
+    context->sta_connect_timeout=xTimerCreate("timer",pdMS_TO_TICKS(15000),pdFALSE,(void*)context,wifi_config_sta_connect_timeout_callback);
 
 
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
