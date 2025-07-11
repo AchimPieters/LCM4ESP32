@@ -52,7 +52,7 @@ void ota_task(void *arg) {
             UDPLGP("--- entering the loop\n");
             //UDPLGP("%d\n",sdk_system_get_time()/1000);
             //need for a protection against an electricity outage recovery storm
-            vTaskDelay(holdoff_time*(1000/portTICK_PERIOD_MS));
+            vTaskDelay(pdMS_TO_TICKS(holdoff_time * 1000));
             holdoff_time*=HOLDOFF_MULTIPLIER; holdoff_time=(holdoff_time<HOLDOFF_MAX) ? holdoff_time : HOLDOFF_MAX;
             
             //do we still have a valid internet connexion? dns resolve github... should not be private IP

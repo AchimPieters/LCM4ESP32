@@ -102,9 +102,9 @@ void   led_blink_task(void *pvParameter) {
         gpio_config(&io_conf);
         while (1) {
             gpio_set_level(led, 1);
-            vTaskDelay(BLINKDELAY/portTICK_PERIOD_MS);
+            vTaskDelay(pdMS_TO_TICKS(BLINKDELAY));
             gpio_set_level(led, 0);
-            vTaskDelay(BLINKDELAY/portTICK_PERIOD_MS);
+            vTaskDelay(pdMS_TO_TICKS(BLINKDELAY));
         }
     } else {
         UDPLGP(": invalid pin!\n");
@@ -233,7 +233,7 @@ void  ota_pre_wifi() {
     if (count>7) {
         UDPLGP("IF this is NOT what you wanted, reset/power-down NOW!\n");
         for (int i=count*4;i>-1;i--) {
-            vTaskDelay(1000/portTICK_PERIOD_MS);
+            vTaskDelay(pdMS_TO_TICKS(1000));
             UDPLGP("%s in %d s\n",value,i);
         }
     }
@@ -578,7 +578,7 @@ static int ota_connect(char* host, int port, mbedtls_net_context *socket, mbedtl
         //UDPLGP("Cipher suite is %s\n", mbedtls_ssl_get_ciphersuite(ssl));
         if (ret) {
             UDPLGP("LCM: BAD error, will wait 1 hour before continuing\n");
-            vTaskDelay(60*60*1000/portTICK_PERIOD_MS);
+            vTaskDelay(pdMS_TO_TICKS(60*60*1000));
             return -1;
         }
     } //end SSL mode
@@ -627,7 +627,7 @@ void  ota_set_verify(int onoff) {
             do {
                 ts = time(NULL);
                 if (ts == ((time_t)-1)) printf("ts=-1, ");
-                vTaskDelay(1);
+                vTaskDelay(pdMS_TO_TICKS(1));
             } while (!(ts>1666666666)); //October 25th 2022 
             UDPLGP("UTC-TIME: %s", ctime(&ts)); //we need to have the clock right to check certificates
             
@@ -1106,7 +1106,7 @@ void  ota_reboot(void) {
         vTaskDelete(ledblinkHandle);
         gpio_reset_pin(led);
     }
-    vTaskDelay(50); //allows UDPLOG to flush
+    vTaskDelay(pdMS_TO_TICKS(50)); //allows UDPLOG to flush
     esp_restart();
 }
 
