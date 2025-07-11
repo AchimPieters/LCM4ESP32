@@ -71,17 +71,20 @@ void  ota_nvs_init() {
 
 char *ota_strstr(const char *full_string, const char *search) { //lowercase version of strstr()
     char *lc_string = strdup(full_string);
+    if (!lc_string) return NULL;
     unsigned char *ch = (unsigned char *) lc_string;
-    while(*ch) {
+    while (*ch) {
         *ch = tolower(*ch);
         ch++;
     }
     const char *found = strstr(lc_string, search);
-    if(found == NULL) {free(lc_string); return NULL;}
-    
-    const int offset = (int) found - (int) lc_string;
+    char *result = NULL;
+    if (found) {
+        ptrdiff_t offset = found - lc_string;
+        result = (char *)full_string + offset;
+    }
     free(lc_string);
-    return (char *) ((int) full_string + offset);
+    return result;
 }
 
 uint8_t led=0;
@@ -487,8 +490,8 @@ int ota_compare(char* newv, char* oldv) { //(if equal,0) (if newer,1) (if pre-re
         do {
             if (strchr(newv,'-')) {result=-1;break;} //we cannot handle versions with pre-release suffix notation (yet)
             //pre-release marker in github serves to identify those
-            strncpy(new,newv,MAXVERSIONLEN-1);
-            strncpy(old,oldv,MAXVERSIONLEN-1);
+            strlcpy(new,newv,MAXVERSIONLEN);
+            strlcpy(old,oldv,MAXVERSIONLEN);
             if ((dot=strchr(new,'.'))) {dot[0]=0; valuen=atoi(new); new=dot+1;}
             if ((dot=strchr(old,'.'))) {dot[0]=0; valueo=atoi(old); old=dot+1;}
             printf("%d-%d,%s-%s\n",valuen,valueo,new,old);
