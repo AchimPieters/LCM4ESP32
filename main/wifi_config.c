@@ -297,8 +297,8 @@ static void https_task(void *arg) {
     INFO("Starting HTTPS server");
     httpd_handle_t https_server = NULL;
     httpd_ssl_config_t conf = HTTPD_SSL_CONFIG_DEFAULT();
-    const unsigned char    srvcert_pem[RSA_BUF_SIZE];
-    const unsigned char    prvtkey_pem[RSA_BUF_SIZE];
+    unsigned char    srvcert_pem[RSA_BUF_SIZE];
+    unsigned char    prvtkey_pem[RSA_BUF_SIZE];
     size_t  size=RSA_BUF_SIZE;
     
     if (nvs_get_str(lcm_handle,"self_cert",(char *)srvcert_pem,&size) == ESP_ERR_NVS_NOT_FOUND) {
