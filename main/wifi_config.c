@@ -5,6 +5,9 @@
 #include "freertos/timers.h"
 #include "esp_mac.h"
 #include "esp_wifi.h"
+#include <sys/socket.h>
+#include <fcntl.h>
+#include <unistd.h>
 #include <lwip/sockets.h>
 #include "form_urlencoded.h"
 #include "esp_app_desc.h"
@@ -353,7 +356,7 @@ static void client_send_redirect(int fd, int code, const char *redirect_url) {
     INFO("Redirecting to %s", redirect_url);
     char buffer[128];
     size_t len = snprintf(buffer, sizeof(buffer), "HTTP/1.1 %d \r\nLocation: %s\r\nContent-Length: 0\r\nConnection: close\r\n\r\n", code, redirect_url);
-    lwip_write(fd, buffer, len);
+    write(fd, buffer, len);
 }
 
 static void http_task(void *arg) {
@@ -366,15 +369,15 @@ static void http_task(void *arg) {
     serv_addr.sin_addr.s_addr = htonl(INADDR_ANY);
     serv_addr.sin_port = htons(WIFI_CONFIG_SERVER_PORT);
     int flags;
-    if ((flags = lwip_fcntl(listenfd, F_GETFL, 0)) < 0) {
+    if ((flags = fcntl(listenfd, F_GETFL, 0)) < 0) {
         ERROR("Failed to get HTTP socket flags");
-        lwip_close(listenfd);
+        close(listenfd);
         vTaskDelete(NULL);
         return;
     };
-    if (lwip_fcntl(listenfd, F_SETFL, flags | O_NONBLOCK) < 0) {
+    if (fcntl(listenfd, F_SETFL, flags | O_NONBLOCK) < 0) {
         ERROR("Failed to set HTTP socket flags");
-        lwip_close(listenfd);
+        close(listenfd);
         vTaskDelete(NULL);
         return;
     }
@@ -404,7 +407,7 @@ static void http_task(void *arg) {
 
 
         for (;;) {
-            int data_len = lwip_read(fd, data, sizeof(data));
+            int data_len = read(fd, data, sizeof(data));
             if (data_len > 0) {
                 client_send_redirect(fd, 302, "https://192.168.4.1:1091/settings");
             } else break;
@@ -417,10 +420,10 @@ static void http_task(void *arg) {
             }
         }
         INFO("Client disconnected");
-        lwip_close(fd);
+        close(fd);
     }
     INFO("Stopping HTTP server");
-    lwip_close(listenfd);
+        close(listenfd);
     context->http_task_handle=NULL;
     INFO("Stopped HTTP server");
     vTaskDelete(NULL);
@@ -516,7 +519,7 @@ static void dns_task(void *arg) {
 
     INFO("Stopping DNS server");
 
-    lwip_close(fd);
+    close(fd);
 
     context->dns_task_handle=NULL;
     INFO("Stopped DNS server");
@@ -582,7 +585,7 @@ static void wifi_config_softap_start() {
     esp_netif_set_ip_info(ap_netif, &ap_ip);
     INFO("Starting DHCP server");
     esp_netif_dhcps_start(ap_netif); //all settings seem to be automatic
-    esp_wifi_set_config(ESP_IF_WIFI_AP, &softap_config);
+    esp_wifi_set_config(WIFI_IF_AP, &softap_config);
 
     wifi_networks_mutex = xSemaphoreCreateBinary();
     xSemaphoreGive(wifi_networks_mutex);
