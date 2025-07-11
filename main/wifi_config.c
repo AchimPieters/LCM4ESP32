@@ -825,7 +825,8 @@ void wifi_config_init(const char *ssid_prefix, const char *password, void (*on_w
     esp_wifi_set_default_wifi_sta_handlers();
     ESP_ERROR_CHECK(esp_wifi_set_storage(WIFI_STORAGE_FLASH));
     esp_wifi_set_mode(WIFI_MODE_STA); //TODO: does this prevent a flash write if not changed?
-    esp_wifi_set_country_code("01", 0); //world safe mode
+    wifi_country_t country = {.cc="01", .schan=1, .nchan=13, .policy=WIFI_COUNTRY_POLICY_AUTO};
+esp_wifi_set_country(&country); //world safe mode
     ESP_ERROR_CHECK(esp_event_handler_register(IP_EVENT, IP_EVENT_STA_GOT_IP, &on_got_ip, NULL));
 
     ESP_ERROR_CHECK(esp_wifi_start()); //TODO: is this the right place?
