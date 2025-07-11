@@ -28,7 +28,7 @@
 #include "esp_wifi.h"
 #include "esp_sntp.h"
 #include <udplogger.h>
-#include "hal/gpio_hal.h" //TODO: evaluate if using HAL is acceptable
+#include "driver/gpio.h" //use high level GPIO driver for IDF5
 
 mbedtls_ssl_config mbedtls_conf;
 mbedtls_entropy_context entropy;
@@ -92,21 +92,19 @@ TaskHandle_t ledblinkHandle = NULL;
 void   led_blink_task(void *pvParameter) {
     UDPLGP("--- led_blink_task pin %d\n",led);
     if (led<6 || led>11) { //do not allow pins 6-11
-        // gpio_config_t io_conf = {};
-        // io_conf.intr_type = GPIO_INTR_DISABLE;
-        // io_conf.mode = GPIO_MODE_OUTPUT;
-        // io_conf.pin_bit_mask = 1ULL<<led;
-        // io_conf.pull_down_en = 0;
-        // io_conf.pull_up_en = 0;
-        // gpio_config(&io_conf);
-        // while(1) {
-        //     gpio_set_level(led, 1); vTaskDelay(BLINKDELAY/portTICK_PERIOD_MS);
-        //     gpio_set_level(led, 0); vTaskDelay(BLINKDELAY/portTICK_PERIOD_MS);
-        // }
-        gpio_ll_output_enable (&GPIO, led);
-        while(1) {
-            gpio_ll_set_level (&GPIO, led, 1); vTaskDelay(BLINKDELAY/portTICK_PERIOD_MS);
-            gpio_ll_set_level (&GPIO, led, 0); vTaskDelay(BLINKDELAY/portTICK_PERIOD_MS);
+        gpio_config_t io_conf = {
+            .pin_bit_mask = 1ULL << led,
+            .mode = GPIO_MODE_OUTPUT,
+            .pull_up_en = GPIO_PULLUP_DISABLE,
+            .pull_down_en = GPIO_PULLDOWN_DISABLE,
+            .intr_type = GPIO_INTR_DISABLE,
+        };
+        gpio_config(&io_conf);
+        while (1) {
+            gpio_set_level(led, 1);
+            vTaskDelay(BLINKDELAY/portTICK_PERIOD_MS);
+            gpio_set_level(led, 0);
+            vTaskDelay(BLINKDELAY/portTICK_PERIOD_MS);
         }
     } else {
         UDPLGP(": invalid pin!\n");
@@ -1106,7 +1104,7 @@ void  ota_reboot(void) {
     UDPLGP("--- ota_reboot\n");
     if (ledblinkHandle) {
         vTaskDelete(ledblinkHandle);
-        gpio_ll_output_disable (&GPIO, led);
+        gpio_reset_pin(led);
     }
     vTaskDelay(50); //allows UDPLOG to flush
     esp_restart();
