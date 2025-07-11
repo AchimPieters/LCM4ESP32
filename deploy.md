@@ -289,7 +289,10 @@ esptool.py -p /dev/cu.usbserial-* --baud 230400 write_flash 0xf9000 versions1-pr
 ```
 - upload the ota-boot BETA program to the device that contains the private key
 ```
-make flash OTAVERSION=0.10.2 OTABETA=1
+idf.py set-target esp32
+idf.py menuconfig
+idf.py build OTAVERSION=0.10.2 OTABETA=1
+idf.py -p PORT flash monitor
 ```
 - setup wifi and select the ota-demo repo without pre-release checkbox  
 - create the 2 signature files next to the bin file and upload to github one by one  

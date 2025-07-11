@@ -126,7 +126,7 @@ void ota_task(void *arg) {
             }
 */
             //if there is a newer version of ota-main...
-            if (ota_compare(ota_version,(char*)esp_app_get_description()->version)>0) { //set OTAVERSION when running make and match with github
+            if (ota_compare(ota_version,(char*)esp_app_get_description()->version)>0) { //set OTAVERSION when building (e.g. using idf.py) and match with GitHub
                 ota_get_hash(OTAREPO, ota_version, BOOTFILE, &signature);
                 if (ota_verify_signature(&signature)) break; //signature file is not signed by our key, ABORT
                 file_size=ota_get_file(OTAREPO,ota_version,BOOTFILE,BOOT0SECTOR);
