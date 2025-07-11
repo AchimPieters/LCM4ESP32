@@ -11,6 +11,7 @@
 #include <lwip/sockets.h>
 #include "form_urlencoded.h"
 #include "esp_app_desc.h"
+#include "esp_idf_version.h"
 #include "esp_https_server.h"
 #include "nvs.h"
 #include "mbedtls/ctr_drbg.h"
@@ -822,10 +823,14 @@ void wifi_config_init(const char *ssid_prefix, const char *password, void (*on_w
 
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
     ESP_ERROR_CHECK(esp_wifi_init(&cfg));
+#if ESP_IDF_VERSION_MAJOR >= 5
+    esp_netif_create_default_wifi_sta();
+#else
     esp_netif_inherent_config_t esp_netif_config = ESP_NETIF_INHERENT_DEFAULT_WIFI_STA();
     esp_netif_config.route_prio = 128;
     esp_netif_create_wifi(WIFI_IF_STA, &esp_netif_config);
     esp_wifi_set_default_wifi_sta_handlers();
+#endif
     ESP_ERROR_CHECK(esp_wifi_set_storage(WIFI_STORAGE_FLASH));
     esp_wifi_set_mode(WIFI_MODE_STA); //TODO: does this prevent a flash write if not changed?
     wifi_country_t country = {.cc="01", .schan=1, .nchan=13, .policy=WIFI_COUNTRY_POLICY_AUTO};
