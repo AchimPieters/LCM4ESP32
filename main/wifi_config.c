@@ -5,6 +5,7 @@
 #include "freertos/timers.h"
 #include "esp_mac.h"
 #include "esp_wifi.h"
+#include "esp_event.h"
 #include <sys/socket.h>
 #include <fcntl.h>
 #include <unistd.h>
@@ -57,6 +58,7 @@ typedef struct _wifi_network_info {
 
 wifi_network_info_t *wifi_networks = NULL;
 SemaphoreHandle_t wifi_networks_mutex;
+static esp_event_handler_instance_t instance_got_ip;
 
 
 static void wifi_scan_done_cb() {
@@ -538,11 +540,16 @@ static void dns_stop() {
 
 
 static void wifi_config_context_free(wifi_config_context_t *context) {
-    if (context->ssid_prefix)
+    if (context->ssid_prefix) {
         free(context->ssid_prefix);
+    }
 
-    if (context->password)
+    if (context->password) {
         free(context->password);
+    }
+
+    /* Remove the IP_EVENT handler registered during init */
+    esp_event_handler_instance_unregister(IP_EVENT, IP_EVENT_STA_GOT_IP, instance_got_ip);
 
     free(context);
 }
@@ -823,19 +830,14 @@ void wifi_config_init(const char *ssid_prefix, const char *password, void (*on_w
 
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
     ESP_ERROR_CHECK(esp_wifi_init(&cfg));
-#if ESP_IDF_VERSION_MAJOR >= 5
+    /* IDF v5 introduced simplified helper to create the default station */
     esp_netif_create_default_wifi_sta();
-#else
-    esp_netif_inherent_config_t esp_netif_config = ESP_NETIF_INHERENT_DEFAULT_WIFI_STA();
-    esp_netif_config.route_prio = 128;
-    esp_netif_create_wifi(WIFI_IF_STA, &esp_netif_config);
-    esp_wifi_set_default_wifi_sta_handlers();
-#endif
     ESP_ERROR_CHECK(esp_wifi_set_storage(WIFI_STORAGE_FLASH));
     esp_wifi_set_mode(WIFI_MODE_STA); //TODO: does this prevent a flash write if not changed?
     wifi_country_t country = {.cc="01", .schan=1, .nchan=13, .policy=WIFI_COUNTRY_POLICY_AUTO};
 esp_wifi_set_country(&country); //world safe mode
-    ESP_ERROR_CHECK(esp_event_handler_register(IP_EVENT, IP_EVENT_STA_GOT_IP, &on_got_ip, NULL));
+    ESP_ERROR_CHECK(esp_event_handler_instance_register(IP_EVENT, IP_EVENT_STA_GOT_IP,
+                                                       &on_got_ip, NULL, &instance_got_ip));
 
     ESP_ERROR_CHECK(esp_wifi_start()); //TODO: is this the right place?
     if (wifi_config_station_connect()) {
