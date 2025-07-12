@@ -2,41 +2,49 @@
 #include <stdio.h>
 #include <string.h>
 
-#include <espressif/esp_wifi.h>
-#include <espressif/esp_sta.h>
-#include <rboot-api.h>
-#include <sysparam.h>
+#include "esp_wifi.h"
+#include "esp_system.h"
+#include "esp_timer.h"
+#include "nvs.h"
+#include "ota.h"
 
 // the first function is the ONLY thing needed for a repo to support ota after having started with ota-boot
 // in ota-boot the user gets to set the wifi and the repository details and it then installs the ota-main binary
 
+extern nvs_handle_t lcm_handle;
+
 void ota_update(void *arg) {  //arg not used
-    rboot_set_temp_rom(1); //select the OTA main routine
-    sdk_system_restart();  //#include <rboot-api.h>
-    // there is a bug in the esp SDK such that if you do not power cycle the chip after serial flashing, restart is unreliable
+    ota_temp_boot();
+    esp_restart();
 }
 
 // this function is optional to couple Homekit parameters to the sysparam variables and github parameters
 unsigned int  ota_read_sysparam(char **manufacturer,char **serial,char **model,char **revision) {
-    sysparam_status_t status;
+    esp_err_t err;
+    size_t size;
     char *value;
 
-    status = sysparam_get_string("ota_repo", &value);
-    if (status == SYSPARAM_OK) {
-        strchr(value,'/')[0]=0;
-        *manufacturer=value;
-        *model=value+strlen(value)+1;
+    if (nvs_get_str(lcm_handle,"ota_repo", NULL, &size)==ESP_OK) {
+        value = malloc(size);
+        if (!value) return 0;
+        nvs_get_str(lcm_handle,"ota_repo", value, &size);
+        char *slash = strchr(value,'/');
+        if (slash) *slash = '\0';
+        *manufacturer = value;
+        *model = slash ? slash + 1 : value + strlen(value);
     } else {
-        *manufacturer="manuf_unknown";
-        *model="model_unknown";
+        *manufacturer = "manuf_unknown";
+        *model = "model_unknown";
     }
-    status = sysparam_get_string("ota_version", &value);
-    if (status == SYSPARAM_OK) {
-        *revision=value;
-    } else *revision="0.0.0";
+    if (nvs_get_str(lcm_handle,"ota_version", NULL, &size)==ESP_OK) {
+        value = malloc(size);
+        if (!value) return 0;
+        nvs_get_str(lcm_handle,"ota_version", value, &size);
+        *revision = value;
+    } else *revision = "0.0.0";
 
     uint8_t macaddr[6];
-    sdk_wifi_get_macaddr(STATION_IF, macaddr);
+    esp_wifi_get_mac(WIFI_IF_STA, macaddr);
     *serial=malloc(18);
     sprintf(*serial,"%02X:%02X:%02X:%02X:%02X:%02X",macaddr[0], macaddr[1], macaddr[2], macaddr[3], macaddr[4], macaddr[5]);
 
@@ -57,10 +65,11 @@ unsigned int  ota_read_sysparam(char **manufacturer,char **serial,char **model,c
 
 
 #include <homekit/characteristics.h>
-#include <esplibs/libmain.h>
-#include <etstimer.h>
 
-static ETSTimer update_timer;
+static esp_timer_handle_t update_timer;
+static void update_timer_cb(void* arg) {
+    ota_update(arg);
+}
 
 void ota_set(homekit_value_t value) {
     if (value.format != homekit_format_bool) {
@@ -69,7 +78,13 @@ void ota_set(homekit_value_t value) {
     }
     if (value.bool_value) {
         //make a distinct light pattern or other feedback to the user = call identify routine
-        sdk_os_timer_setfn(&update_timer, ota_update, NULL);
-        sdk_os_timer_arm(&update_timer, 500, 0); //wait 0.5 seconds to trigger the reboot so gui can update and events sent
+        if (!update_timer) {
+            const esp_timer_create_args_t args = {
+                .callback = &update_timer_cb,
+                .name = "ota_update"
+            };
+            esp_timer_create(&args, &update_timer);
+        }
+        esp_timer_start_once(update_timer, 500000); //500ms
     }
 }
