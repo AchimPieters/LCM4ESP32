@@ -90,6 +90,7 @@ form_param_t *form_params_parse(const char *s) {
                 param->value = url_unescape(s + pos, i - pos);
                 if (!param->value) {
                     free(param->name);
+                    params = param->next; //remove from list before freeing
                     free(param);
                     form_params_free(params);
                     return NULL;
