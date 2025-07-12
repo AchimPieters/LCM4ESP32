@@ -1,10 +1,11 @@
-#include <stdlib.h>  //for printf
+#include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 
-#include "esp_wifi.h"
+#include "esp_mac.h"
 #include "esp_system.h"
 #include "esp_timer.h"
+#include "esp_log.h"
 #include "nvs.h"
 #include "ota.h"
 
@@ -12,6 +13,7 @@
 // in ota-boot the user gets to set the wifi and the repository details and it then installs the ota-main binary
 
 extern nvs_handle_t lcm_handle;
+static const char *TAG = "ota-api";
 
 void ota_update(void *arg) {  //arg not used
     ota_temp_boot();
@@ -20,7 +22,6 @@ void ota_update(void *arg) {  //arg not used
 
 // this function is optional to couple Homekit parameters to the sysparam variables and github parameters
 unsigned int  ota_read_sysparam(char **manufacturer,char **serial,char **model,char **revision) {
-    esp_err_t err;
     size_t size;
     char *value;
 
@@ -43,21 +44,32 @@ unsigned int  ota_read_sysparam(char **manufacturer,char **serial,char **model,c
         *revision = value;
     } else *revision = "0.0.0";
 
-    uint8_t macaddr[6];
-    esp_wifi_get_mac(WIFI_IF_STA, macaddr);
-    *serial=malloc(18);
-    sprintf(*serial,"%02X:%02X:%02X:%02X:%02X:%02X",macaddr[0], macaddr[1], macaddr[2], macaddr[3], macaddr[4], macaddr[5]);
+    uint8_t mac_addr[6];
+    esp_read_mac(mac_addr, ESP_MAC_WIFI_STA);
+    *serial = malloc(18);
+    if (!*serial) {
+        ESP_LOGE(TAG, "No memory for serial");
+        return 0;
+    }
+    snprintf(*serial, 18, "%02X:%02X:%02X:%02X:%02X:%02X", mac_addr[0], mac_addr[1], mac_addr[2], mac_addr[3], mac_addr[4], mac_addr[5]);
 
-    unsigned int c_hash=0;
+    unsigned int c_hash = 0;
     char version[16];
-    char* rev=version;
-    char* dot;
-    strncpy(rev,*revision,16);
-    if ((dot=strchr(rev,'.'))) {dot[0]=0; c_hash=            atoi(rev); rev=dot+1;}
-    if ((dot=strchr(rev,'.'))) {dot[0]=0; c_hash=c_hash*1000+atoi(rev); rev=dot+1;}
-                                          c_hash=c_hash*1000+atoi(rev);
-                                            //c_hash=c_hash*10  +configuration_variant; //possible future extension
-    printf("manuf=\'%s\' serial=\'%s\' model=\'%s\' revision=\'%s\' c#=%d\n",*manufacturer,*serial,*model,*revision,c_hash);
+    char *rev = version;
+    char *dot;
+    strncpy(rev, *revision, sizeof(version));
+    if ((dot = strchr(rev, '.'))) {
+        *dot = 0;
+        c_hash = atoi(rev);
+        rev = dot + 1;
+    }
+    if ((dot = strchr(rev, '.'))) {
+        *dot = 0;
+        c_hash = c_hash * 1000 + atoi(rev);
+        rev = dot + 1;
+    }
+    c_hash = c_hash * 1000 + atoi(rev);
+    ESP_LOGI(TAG, "manuf='%s' serial='%s' model='%s' revision='%s' c#=%d", *manufacturer, *serial, *model, *revision, c_hash);
     return c_hash;
 }
 
@@ -73,7 +85,7 @@ static void update_timer_cb(void* arg) {
 
 void ota_set(homekit_value_t value) {
     if (value.format != homekit_format_bool) {
-        printf("Invalid ota-value format: %d\n", value.format);
+        ESP_LOGW(TAG, "Invalid ota-value format: %d", value.format);
         return;
     }
     if (value.bool_value) {
