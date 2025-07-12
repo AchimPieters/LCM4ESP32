@@ -6,6 +6,7 @@
 #include "esp_system.h"
 #include "esp_timer.h"
 #include "esp_log.h"
+#include "esp_check.h"
 #include "nvs.h"
 #include "ota.h"
 
@@ -15,34 +16,65 @@
 extern nvs_handle_t lcm_handle;
 static const char *TAG = "ota-api";
 
+// Trigger the OTA process and restart into the temporary image
 void ota_update(void *arg) {  //arg not used
     ota_temp_boot();
     esp_restart();
 }
 
-// this function is optional to couple Homekit parameters to the sysparam variables and github parameters
-unsigned int  ota_read_sysparam(char **manufacturer,char **serial,char **model,char **revision) {
+// Read OTA related parameters from NVS and compute HomeKit configuration hash
+unsigned int  ota_read_sysparam(char **manufacturer, char **serial,
+                                char **model, char **revision)
+{
+    if (!manufacturer || !serial || !model || !revision) {
+        ESP_LOGE(TAG, "invalid argument");
+        return 0;
+    }
+
     size_t size;
     char *value;
 
-    if (nvs_get_str(lcm_handle,"ota_repo", NULL, &size)==ESP_OK) {
+    esp_err_t err = nvs_get_str(lcm_handle, "ota_repo", NULL, &size);
+    if (err == ESP_OK) {
         value = malloc(size);
-        if (!value) return 0;
-        nvs_get_str(lcm_handle,"ota_repo", value, &size);
-        char *slash = strchr(value,'/');
-        if (slash) *slash = '\0';
+        if (!value) {
+            ESP_LOGE(TAG, "no memory for repo");
+            return 0;
+        }
+        err = nvs_get_str(lcm_handle, "ota_repo", value, &size);
+        if (err != ESP_OK) {
+            ESP_LOGE(TAG, "nvs get repo failed: %s", esp_err_to_name(err));
+            free(value);
+            return 0;
+        }
+        char *slash = strchr(value, '/');
+        if (slash) {
+            *slash = '\0';
+        }
         *manufacturer = value;
         *model = slash ? slash + 1 : value + strlen(value);
     } else {
         *manufacturer = "manuf_unknown";
         *model = "model_unknown";
     }
-    if (nvs_get_str(lcm_handle,"ota_version", NULL, &size)==ESP_OK) {
+
+    err = nvs_get_str(lcm_handle, "ota_version", NULL, &size);
+    if (err == ESP_OK) {
         value = malloc(size);
-        if (!value) return 0;
-        nvs_get_str(lcm_handle,"ota_version", value, &size);
+        if (!value) {
+            ESP_LOGE(TAG, "no memory for version");
+            return 0;
+        }
+        err = nvs_get_str(lcm_handle, "ota_version", value, &size);
+        if (err != ESP_OK) {
+            ESP_LOGE(TAG, "nvs get version failed: %s", esp_err_to_name(err));
+            free(value);
+            return 0;
+        }
         *revision = value;
-    } else *revision = "0.0.0";
+    } else {
+        *revision = "0.0.0";
+    }
 
     uint8_t mac_addr[6];
     esp_read_mac(mac_addr, ESP_MAC_WIFI_STA);
@@ -89,7 +121,7 @@ void ota_set(homekit_value_t value) {
         return;
     }
     if (value.bool_value) {
-        //make a distinct light pattern or other feedback to the user = call identify routine
+        // Provide user feedback via identify routine and delay reboot
         if (!update_timer) {
             const esp_timer_create_args_t args = {
                 .callback = &update_timer_cb,
