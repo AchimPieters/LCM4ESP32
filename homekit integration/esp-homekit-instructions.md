@@ -1,16 +1,22 @@
-### This assumes you are using Maxim Kulkin's esp-homekit library for HomeKit support
+### This assumes you are using [Achim Pieters' esp32-homekit](https://github.com/AchimPieters/esp32-homekit) library for HomeKit support
 
-- First, add the files ota-api.c and ota-api.h next to your main.c file
-- next add extras/rboot-ota to the Makefile
+- First, copy `ota-api.c` and `ota-api.h` into the component that contains your
+  `main.c` file.  Add them to the list of sources in the component's
+  `CMakeLists.txt`:
+```cmake
+idf_component_register(
+    SRCS "main.c" "ota-api.c" ...
+    INCLUDE_DIRS "."
+    REQUIRES esp32-homekit
+)
 ```
-EXTRA_COMPONENTS = \
-    extras/http-parser \
-    extras/dhcpserver \
-    extras/rboot-ota \
-    $(abspath esp-wolfssl) \
-    $(abspath esp-cjson) \
-    $(abspath esp-homekit) \
-    $(abspath esp-wifi-config)
+
+- Add a `idf_component.yml` file in the same directory to pull in the HomeKit
+  component automatically:
+```yaml
+dependencies:
+  idf: ">=5.0"
+  achimpieters/esp32-homekit: "1.*"
 ```
 - inside main.c  you should start with adding this section soon after #include section
 ```
@@ -27,9 +33,11 @@ homekit_characteristic_t model        = HOMEKIT_CHARACTERISTIC_(MODEL,         "
 homekit_characteristic_t revision     = HOMEKIT_CHARACTERISTIC_(FIRMWARE_REVISION,  "0.0.0");
 
 // next use these two lines before calling homekit_server_init(&config);
-//    int c_hash=ota_read_sysparam(&manufacturer.value.string_value,&serial.value.string_value,
-//                                      &model.value.string_value,&revision.value.string_value);
-//    config.accessories[0]->config_number=c_hash;
+//     int c_hash=ota_read_sysparam(&manufacturer.value.string_value,
+//                                  &serial.value.string_value,
+//                                  &model.value.string_value,
+//                                  &revision.value.string_value);
+//     config.accessories[0]->config_number=c_hash;
 // end of OTA add-in instructions
 ```
 ###  for example it could end up like this:
