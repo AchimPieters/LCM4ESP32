@@ -16,10 +16,13 @@
     .value = HOMEKIT_BOOL_(_value), \
     ##__VA_ARGS__
 
-unsigned int  ota_read_sysparam(char **manufacturer,char **serial,char **model,char **revision);
+unsigned int ota_read_sysparam(char **manufacturer, char **serial,
+                               char **model, char **revision);
 
+// Trigger OTA update using previously saved settings
 void ota_update(void *arg);
 
+// HomeKit characteristic setter to initiate OTA update
 void ota_set(homekit_value_t value);
 
 #define API_OTA_TRIGGER HOMEKIT_CHARACTERISTIC_(CUSTOM_OTA_TRIGGER, false, .setter=ota_set)
