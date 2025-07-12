@@ -1,18 +1,30 @@
-### This assumes you are using Maxim Kulkin's esp-homekit library for HomeKit support
+### This assumes you are using [Achim Pieters' esp32-homekit](https://github.com/AchimPieters/esp32-homekit) library for HomeKit support
 
-- First, add the files ota-api.c and ota-api.h next to your main.c file
-- next add extras/rboot-ota to the Makefile
+Below is a short walk‑through to add OTA support using the OTA API in this repository.
+
+1. **Add the HomeKit component**
+   Create a file named `idf_component.yml` next to your `main.c` and list the HomeKit library as a dependency:
+```yaml
+dependencies:
+  idf: ">=5.0"
+  achimpieters/esp32-homekit: "1.*"
 ```
-EXTRA_COMPONENTS = \
-    extras/http-parser \
-    extras/dhcpserver \
-    extras/rboot-ota \
-    $(abspath esp-wolfssl) \
-    $(abspath esp-cjson) \
-    $(abspath esp-homekit) \
-    $(abspath esp-wifi-config)
+
+2. **Copy the OTA API files**
+   Place `ota-api.c` and `ota-api.h` from the `homekit integration` folder into the same directory as `main.c`.
+
+3. **Register the files with CMake**
+   Add them to the source list in your `CMakeLists.txt`:
+```cmake
+idf_component_register(
+    SRCS "main.c" "ota-api.c" ...
+    INCLUDE_DIRS "."
+    REQUIRES esp32-homekit
+)
 ```
-- inside main.c  you should start with adding this section soon after #include section
+
+4. **Update your `main.c`**
+   Insert the code below after the `#include` section. These characteristics expose the OTA trigger and transfer device information to HomeKit.
 ```
 // add this section to make your device OTA capable
 // create the extra characteristic &ota_trigger, at the end of the primary service (before the NULL)
@@ -27,9 +39,11 @@ homekit_characteristic_t model        = HOMEKIT_CHARACTERISTIC_(MODEL,         "
 homekit_characteristic_t revision     = HOMEKIT_CHARACTERISTIC_(FIRMWARE_REVISION,  "0.0.0");
 
 // next use these two lines before calling homekit_server_init(&config);
-//    int c_hash=ota_read_sysparam(&manufacturer.value.string_value,&serial.value.string_value,
-//                                      &model.value.string_value,&revision.value.string_value);
-//    config.accessories[0]->config_number=c_hash;
+//     int c_hash=ota_read_sysparam(&manufacturer.value.string_value,
+//                                  &serial.value.string_value,
+//                                  &model.value.string_value,
+//                                  &revision.value.string_value);
+//     config.accessories[0]->config_number=c_hash;
 // end of OTA add-in instructions
 ```
 ###  for example it could end up like this:
@@ -79,4 +93,16 @@ void on_wifi_ready() {
     homekit_server_init(&config);
 }
 ```
-The cheat line can be used in the initial stage before LCM is used at all since without it homekit will not work
+5. **Build and flash**
+   Compile the project and upload it to your board:
+```bash
+idf.py build flash
+```
+
+6. **Pair and update**
+   Pair the device with the Home or Eve app. In the Eve app you will see a
+   _FirmwareUpdate_ switch. Toggle it whenever a newer version exists in the
+   configured repository.
+
+The cheat line can be used in the initial stage before LCM is used at all since
+without it HomeKit will not work.
