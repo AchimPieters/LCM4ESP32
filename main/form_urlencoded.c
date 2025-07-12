@@ -1,24 +1,24 @@
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
+#include <stdbool.h>
 #include "form_urlencoded.h"
 
+static inline bool is_hex(int c) {
+    c = toupper((unsigned char)c);
+    return ('0' <= c && c <= '9') || ('A' <= c && c <= 'F');
+}
+
+static inline int hex_value(int c) {
+    c = toupper((unsigned char)c);
+    if ('0' <= c && c <= '9') {
+        return c - '0';
+    }
+    return c - 'A' + 10;
+}
 
 char *url_unescape(const char *buffer, size_t size) {
-    int len = 0;
-
-    int ishex(int c) {
-        c = toupper(c);
-        return ('0' <= c && c <= '9') || ('A' <= c && c <= 'F');
-    }
-
-    int hexvalue(int c) {
-        c = toupper(c);
-        if ('0' <= c && c <= '9')
-            return c - '0';
-        else
-            return c - 'A' + 10;
-    }
+    size_t len = 0;
 
     int i = 0, j;
     while (i < size) {
@@ -30,7 +30,10 @@ char *url_unescape(const char *buffer, size_t size) {
         }
     }
 
-    char *result = malloc(len+1);
+    char *result = malloc(len + 1);
+    if (!result) {
+        return NULL;
+    }
     i = j = 0;
     while (i < size) {
         if (buffer[i] == '+') {
@@ -39,8 +42,8 @@ char *url_unescape(const char *buffer, size_t size) {
         } else if (buffer[i] != '%') {
             result[j++] = buffer[i++];
         } else {
-            if (i+2 < size && ishex(buffer[i+1]) && ishex(buffer[i+2])) {
-                result[j++] = hexvalue(buffer[i+1])*16 + hexvalue(buffer[i+2]);
+            if (i + 2 < size && is_hex(buffer[i + 1]) && is_hex(buffer[i + 2])) {
+                result[j++] = hex_value(buffer[i + 1]) * 16 + hex_value(buffer[i + 2]);
                 i += 3;
             } else {
                 result[j++] = buffer[i++];
@@ -65,7 +68,16 @@ form_param_t *form_params_parse(const char *s) {
         }
 
         form_param_t *param = malloc(sizeof(form_param_t));
-        param->name = url_unescape(s+pos, i-pos);
+        if (!param) {
+            form_params_free(params);
+            return NULL;
+        }
+        param->name = url_unescape(s + pos, i - pos);
+        if (!param->name) {
+            free(param);
+            form_params_free(params);
+            return NULL;
+        }
         param->value = NULL;
         param->next = params;
         params = param;
@@ -75,7 +87,13 @@ form_param_t *form_params_parse(const char *s) {
             pos = i;
             while (s[i] && s[i] != '&') i++;
             if (i != pos) {
-                param->value = url_unescape(s+pos, i-pos);
+                param->value = url_unescape(s + pos, i - pos);
+                if (!param->value) {
+                    free(param->name);
+                    free(param);
+                    form_params_free(params);
+                    return NULL;
+                }
             }
         }
 

@@ -1,13 +1,12 @@
-// (c) 2018-2021 HomeAccessoryKid
+// (c) 2018-2024 HomeAccessoryKid
 
 #include <stdio.h>
-#include <esp_wifi.h>
-#include "esp_netif.h"
-#include <esp_system.h>
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
 #include <string.h>
 #include <stdbool.h>
+#include "esp_wifi.h"
+#include "esp_netif.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 #include <sys/socket.h>
 #include <lwip/sockets.h>
 #include <lwip/raw.h>
@@ -23,9 +22,9 @@ static bool netif_has_ip(esp_netif_t *netif, void *ctx) {
            ip.ip.addr != 0;
 }
 
-void udplog_send(void *pvParameters){
-    int lSocket,i=0;
-    struct sockaddr_in sLocalAddr, sDestAddr;
+static void udplog_send(void *pvParameters){
+    int udp_socket, wait = 0;
+    struct sockaddr_in local_addr, dest_addr;
 
 //     while (sdk_wifi_station_get_connect_status() != STATION_GOT_IP) vTaskDelay(20); //Check if we have an IP every 200ms
     esp_netif_t* esp_netif = NULL;
@@ -40,27 +39,29 @@ void udplog_send(void *pvParameters){
         }
     } while (!esp_netif || info.ip.addr == 0);
 
-    lSocket = socket(AF_INET, SOCK_DGRAM, 0);
-    memset((char *)&sLocalAddr, 0, sizeof(sLocalAddr));
-    memset((char *)&sDestAddr,  0, sizeof(sDestAddr));
+    udp_socket = socket(AF_INET, SOCK_DGRAM, 0);
+    memset(&local_addr, 0, sizeof(local_addr));
+    memset(&dest_addr,  0, sizeof(dest_addr));
     /*Destination*/
-    sDestAddr.sin_family = AF_INET;
-    sDestAddr.sin_addr.s_addr = htonl(INADDR_BROADCAST);
-    sDestAddr.sin_port =28338; //= 45678; //reversed bytes
+    dest_addr.sin_family = AF_INET;
+    dest_addr.sin_addr.s_addr = htonl(INADDR_BROADCAST);
+    dest_addr.sin_port = 28338; //= 45678; //reversed bytes
     /*Source*/
-    sLocalAddr.sin_family = AF_INET;
-    sLocalAddr.sin_addr.s_addr = htonl(INADDR_ANY);
-    sLocalAddr.sin_port =40109; //= 44444; //reversed bytes
-    bind(lSocket, (struct sockaddr *)&sLocalAddr, sizeof(sLocalAddr));
+    local_addr.sin_family = AF_INET;
+    local_addr.sin_addr.s_addr = htonl(INADDR_ANY);
+    local_addr.sin_port = 40109; //= 44444; //reversed bytes
+    bind(udp_socket, (struct sockaddr *)&local_addr, sizeof(local_addr));
 
     while (1) {
-        if ((!i && udplogstring_len) || udplogstring_len>700) {
-            sendto(lSocket, udplogstring, udplogstring_len, 0, (struct sockaddr *)&sDestAddr, sizeof(sDestAddr));
-            udplogstring_len=0;
-            i=10;
+        if ((!wait && udplogstring_len) || udplogstring_len > 700) {
+            sendto(udp_socket, udplogstring, udplogstring_len, 0, (struct sockaddr *)&dest_addr, sizeof(dest_addr));
+            udplogstring_len = 0;
+            wait = 10;
         }
-        if (!i) i=10; //sends output every 100ms if not more than 700 bytes
-        i--;
+        if (!wait) {
+            wait = 10; // send output every 100ms
+        }
+        wait--;
         vTaskDelay(pdMS_TO_TICKS(10)); //with len>1000 and delay=10ms, we might handle 800kbps throughput
     }
 }
