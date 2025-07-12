@@ -21,7 +21,7 @@
 #include "wifi_config.h"
 #include <udplogger.h>
 
-void ota_task(void *arg) {
+static void ota_task(void *arg) {
     int holdoff_time=1; //32bit, in seconds
     char* user_repo=NULL;
     char* user_version=NULL;
@@ -159,7 +159,7 @@ void ota_task(void *arg) {
     vTaskDelete(NULL); //just for completeness sake, would never get till here
 }
 
-void emergency_task(void *ota_srvr) {
+static void emergency_task(void *ota_srvr) {
     UDPLGP("--- emergency_task\n");
     signature_t signature;
     
@@ -175,7 +175,7 @@ void emergency_task(void *ota_srvr) {
     vTaskDelete(NULL); //just for completeness sake, would never get till here
 }
 
-void on_wifi_ready() {
+static void on_wifi_ready(void) {
     UDPLGP("--- on_wifi_ready\n");
     char* ota_srvr=NULL;
 
